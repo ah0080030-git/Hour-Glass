@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Kaca & Gelombang Cahaya</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" />
+<style>
+:root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--orange-500:#f97316;--amber-400:#fbbf24;--ink-950:#0d0d0e;--glass-scale:1.7}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100%;background:var(--ink-950);overflow:hidden;
+background-image:radial-gradient(ellipse 55% 40% at 50% 50%,rgba(249,115,22,.22),transparent 70%),radial-gradient(ellipse 60% 30% at 50% 0%,rgba(251,191,36,.07),transparent 70%);
+display:flex;align-items:center;justify-content:center}
+main{width:100%;display:flex;justify-content:center}
+.stage{position:relative;width:min(1280px,calc(100vw - 24px))}
+.stage::before{content:"";position:absolute;left:50%;top:50%;width:min(1150px,100%);height:260px;transform:translate(-50%,-50%);background:radial-gradient(closest-side at 30% 50%,rgba(249,115,22,.35),rgba(251,191,36,.1) 60%,transparent),radial-gradient(closest-side at 75% 50%,rgba(168,85,247,.22),rgba(56,189,248,.12) 60%,transparent);filter:blur(40px);pointer-events:none}
+.track-wrapper{position:relative;width:100%;height:72px}
+.track{position:relative;width:100%;height:72px}
+.bar{position:absolute;left:0;top:50%;width:100%;height:300px;transform:translateY(-50%);display:block;pointer-events:none;opacity:0;filter:blur(3.5px)}
+.underglow{position:absolute;top:calc(50% - 4.5px);left:0;height:9px;width:100%;border-radius:9999px;background:linear-gradient(90deg,rgba(249,115,22,.45),rgba(251,191,36,.65) 35%,rgba(255,255,255,.8) 50%,rgba(244,63,94,.6) 58%,rgba(250,204,21,.6) 68%,rgba(52,211,153,.6) 78%,rgba(56,189,248,.6) 88%,rgba(168,85,247,.55));filter:blur(6px);opacity:.85;pointer-events:none;z-index:1}
+.capsule{position:absolute;top:50%;left:50%;width:280px;height:72px;transform:translate(-50%,-50%) scale(var(--glass-scale));border-radius:9999px;overflow:hidden;clip-path:inset(0 round 9999px);z-index:20;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,0) 45%,rgba(255,255,255,.05));box-shadow:0 10px 22px -10px rgba(15,23,42,.22),0 2px 6px -2px rgba(15,23,42,.1),inset 0 1px 0 rgba(255,255,255,.55);transition:box-shadow .3s ease}
+.capsule.hot{box-shadow:0 10px 22px -10px rgba(15,23,42,.22),inset 0 1px 0 rgba(255,255,255,.8),inset 0 0 0 1px rgba(255,200,130,.4),inset 0 -14px 24px -14px rgba(249,115,22,.45)}
+.capsule canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:9999px;pointer-events:none;display:block}
+#cvRefract{z-index:2}#cvShell{z-index:8}#cvText{z-index:10}#cvEngrave{z-index:11}
+.clock{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;gap:1px;white-space:nowrap;pointer-events:none;font:700 29px/1 "Orbitron","Rajdhani",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;text-shadow:0 1px 2px rgba(15,23,42,.6),0 0 6px rgba(251,191,36,.7),0 0 14px rgba(249,115,22,.55)}
+.clock i{display:inline-block;width:.82em;text-align:center;font-style:normal}
+.clock i.c{width:.42em;color:#fbbf24;opacity:.85}
+.clock b{margin-left:8px;font-size:.56em;font-weight:700;letter-spacing:.14em;color:#fbbf24}
+.clock{visibility:hidden}
+@media(max-width:860px){:root{--glass-scale:1.4}}
+@media(max-width:640px){:root{--glass-scale:1.1}}
+</style>
+</head>
+<body>
+<main><div class="stage" role="img" aria-label="Gelombang cahaya oranye di kiri dan warna-warni di kanan bergerak melewati lensa kaca berbentuk kapsul yang menampilkan jam digital">
+  <div class="track-wrapper" id="wrap">
+    <div class="underglow"></div>
+    <div class="track"><canvas class="bar" id="cvBar" aria-hidden="true"></canvas></div>
+    <div class="capsule" id="capsule" aria-hidden="true"><canvas id="cvRefract"></canvas><canvas id="cvShell"></canvas><canvas id="cvText"></canvas><canvas id="cvEngrave"></canvas><time class="clock" id="clock"><i>0</i><i>0</i><i class="c">:</i><i>0</i><i>0</i><i class="c">:</i><i>0</i><i>0</i><b>AM</b></time></div>
+  </div>
+</div></main>
+
+<script>
+const $ = id => document.getElementById(id);
+const wrap = $('wrap'), cvBar = $('cvBar'), cvRefract = $('cvRefract'), cvShell = $('cvShell'), capsule = $('capsule');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+const BH = 300; /* tinggi kanvas gelombang: ruang untuk kerucut di sisi kiri */
+let trackW = 420, trackH = 72, dpr = Math.min(3, Math.max(1, devicePixelRatio || 1));
+let capX = 210, capW = 476, DT = .016, dirty = true; /* diukur sekali saat ukuran berubah, bukan tiap frame */
+
+function syncBar() {
+  const r = wrap.getBoundingClientRect();
+  trackW = Math.max(1, Math.round(r.width || 420));
+  trackH = Math.max(1, Math.round(r.height || 72));
+  dpr = Math.min(3, Math.max(1, devicePixelRatio || 1));
+  const w = Math.round(trackW*dpr), h = Math.round(BH*dpr);
+  if (cvBar.width !== w || cvBar.height !== h) { cvBar.width = w; cvBar.height = h; }
+  capX = Math.round(trackW/2*dpr)/dpr; capsule.style.left = capX.toFixed(3) + 'px';
+  capW = capsule.getBoundingClientRect().width || capW;
+}
+
+/* Refraksi kromatik: gelombang dibelokkan oleh tepi kapsul kaca */
+const RK = 2, OW = 280*RK, OH = 72*RK, PAD = 24, SW = (280 + PAD*2)*RK, SH = 72*RK;
+const offSc = document.createElement('canvas'); offSc.width = SW; offSc.height = SH;
+const sctx = offSc.getContext('2d', { willReadFrequently: true });
+const mx = new Float32Array(OW*OH), my = new Float32Array(OW*OH), ma = new Uint8ClampedArray(OW*OH);
+const Rv = OH/2, halfV = OW/2 - Rv, maxM = 19*RK;
+for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) {
+  const cx = x + .5 - OW/2, cy = y + .5 - OH/2;
+  const dx = Math.max(0, Math.abs(cx) - halfV), dist = Math.hypot(dx, cy), d = Rv - dist, i = y*OW + x;
+  if (d <= 0) continue;
+  ma[i] = Math.min(1, d/1.5)*255;
+  const s = 1 - Math.min(1, d/Rv);
+  const ex = dist > 0 ? (cx < 0 ? -dx : dx)/dist : 0, ey = dist > 0 ? cy/dist : 0;
+  const m = maxM*Math.pow(s, 2.4);
+  mx[i] = -ex*m; my[i] = -ey*m;
+}
+/* offset refraksi bersifat statis: indeks sumber & bobot dihitung sekali, bukan tiap frame */
+const ks = [1.1,1,.9], SI = new Int32Array(OW*OH*3), SX = new Float32Array(OW*OH*3), SY = new Float32Array(OW*OH*3);
+for (let i = 0; i < OW*OH; i++) {
+  if (!ma[i]) continue;
+  const y = (i/OW)|0, x = i - y*OW, bx = SW/2 + (x + .5 - OW/2)*.92, by = SH/2 + (y + .5 - OH/2)*.92;
+  for (let ch = 0; ch < 3; ch++) {
+    let sx = bx + mx[i]*ks[ch] - .5, sy = by + my[i]*ks[ch] - .5;
+    sx = sx < 0 ? 0 : sx > SW - 1.001 ? SW - 1.001 : sx;
+    sy = sy < 0 ? 0 : sy > SH - 1.001 ? SH - 1.001 : sy;
+    const x0 = Math.floor(sx), y0 = Math.floor(sy), j = i*3 + ch;
+    SI[j] = (y0*SW + x0)*4 + ch; SX[j] = sx - x0; SY[j] = sy - y0;
+  }
+}
+cvRefract.width = OW; cvRefract.height = OH;
+const refractCtx = cvRefract.getContext('2d');
+const refractOut = refractCtx.createImageData(OW, OH);
+const ptr = { x: 0, y: 0, tx: 0, ty: 0, a: 0, ta: 0, s: 1.7 };
+
+function renderRefract(capX) {
+  sctx.setTransform(1,0,0,1,0,0);
+  const bgG = sctx.createLinearGradient(0,0,0,SH);
+  bgG.addColorStop(0,'#241c16'); bgG.addColorStop(.5,'#0f0f11'); bgG.addColorStop(1,'#1f1610');
+  sctx.fillStyle = bgG; sctx.fillRect(0,0,SW,SH);
+  sctx.setTransform(RK,0,0,RK,(PAD + 140 - capX)*RK,0);
+  sctx.save(); sctx.beginPath(); sctx.rect(0,0,trackW,trackH); sctx.clip();
+  const sx0 = Math.max(0, capX - 140 - PAD), sx1 = Math.min(trackW, capX + 140 + PAD);
+  sctx.drawImage(cvBar, sx0*dpr, (BH - trackH)/2*dpr, (sx1 - sx0)*dpr, trackH*dpr, sx0, 0, sx1 - sx0, trackH); sctx.restore();
+
+  /* kursor kustom ikut dibiaskan oleh lensa */
+  const k = reduce.matches ? 1 : 1 - Math.pow(.65, DT*60);
+  if (ptr.a < .02) { ptr.x = ptr.tx; ptr.y = ptr.ty; }
+  ptr.x += (ptr.tx - ptr.x)*k; ptr.y += (ptr.ty - ptr.y)*k; ptr.a += (ptr.ta - ptr.a)*(reduce.matches ? 1 : 1 - Math.pow(.8, DT*60));
+  if (ptr.a > .01) {
+    sctx.save(); sctx.globalAlpha = ptr.a; sctx.translate(capX - 140 + ptr.x, ptr.y); sctx.scale(1/ptr.s, 1/ptr.s);
+    const gl = sctx.createRadialGradient(5,8,0,5,8,38); gl.addColorStop(0,'rgba(251,146,60,.55)'); gl.addColorStop(1,'rgba(251,146,60,0)');
+    sctx.fillStyle = gl; sctx.fillRect(-40,-40,90,90);
+    sctx.beginPath(); sctx.moveTo(0,0); sctx.lineTo(0,17); sctx.lineTo(4.2,13); sctx.lineTo(7,19.5); sctx.lineTo(9.6,18.4); sctx.lineTo(6.8,12); sctx.lineTo(12,12); sctx.closePath();
+    sctx.fillStyle = '#fff'; sctx.fill(); sctx.strokeStyle = 'rgba(20,12,4,.85)'; sctx.lineWidth = 1.3; sctx.lineJoin = 'round'; sctx.stroke();
+    sctx.restore();
+  }
+
+  const sd = sctx.getImageData(0,0,SW,SH).data, od = refractOut.data, SW4 = SW*4;
+  for (let i = 0, n = OW*OH; i < n; i++) {
+    const a = ma[i], o = i*4;
+    if (!a) { od[o+3] = 0; continue; }
+    for (let ch = 0; ch < 3; ch++) {
+      const j = i*3 + ch, p = SI[j], q = p + SW4, fx = SX[j], fy = SY[j];
+      const v = (sd[p]*(1-fx) + sd[p+4]*fx)*(1-fy) + (sd[q]*(1-fx) + sd[q+4]*fx)*fy;
+      od[o+ch] = (v-128)*1.04 + 128;
+    }
+    od[o+3] = a;
+  }
+  refractCtx.putImageData(refractOut,0,0);
+  paintTextBand(sd);
+}
+
+/* Cangkang kaca: pantulan spekuler + Fresnel */
+(function paintGlass() {
+  const K = Math.min(8, Math.max(6, Math.ceil((devicePixelRatio || 1)*3)));
+  const W = 280*K, H = 72*K;
+  cvShell.width = W; cvShell.height = H;
+  const c = cvShell.getContext('2d'), img = c.createImageData(W,H), D = img.data;
+  const nrm = (a,b,cc) => { const l = Math.hypot(a,b,cc); return [a/l,b/l,cc/l]; };
+  const dot = (a,b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+  const L1 = nrm(-.45,-.8,.55), L2 = nrm(.5,.85,.45);
+  const H1 = nrm(L1[0],L1[1],L1[2]+1), H2 = nrm(L2[0],L2[1],L2[2]+1);
+  const R = H/2, half = W/2 - R, hairW = .8*K;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const cx = x + .5 - W/2, cy = y + .5 - H/2;
+    const dx = Math.max(0, Math.abs(cx) - half), dist = Math.hypot(dx,cy), d = R - dist;
+    if (d <= 0) continue;
+    const i = (y*W + x)*4, s = 1 - Math.min(1, d/R);
+    const ex = dist > 0 ? (cx < 0 ? -dx : dx)/dist : 0, ey = dist > 0 ? cy/dist : 0;
+    const n = nrm(ex*s, ey*s, Math.sqrt(Math.max(.0001, 1 - s*s)));
+    const s1 = Math.pow(Math.max(0,dot(n,H1)),110)*.95 + Math.pow(Math.max(0,dot(n,H1)),16)*.16;
+    const s2 = Math.pow(Math.max(0,dot(n,H2)),60)*.4;
+    const fres = Math.pow(1 - n[2], 2.4);
+    const hr = d < hairW ? (1 - d/hairW)*.6*(.45 + .55*Math.max(0,-ey)) : 0;
+    let nz = (Math.sin(x*12.9898 + y*78.233)*43758.5453) % 1; if (nz < 0) nz += 1;
+    const a1 = Math.min(1,fres*.3), a2 = Math.min(1,s1), a3 = Math.min(1,hr), a4 = Math.min(1,s2);
+    const a5 = .05*nz*(.4 + fres), a6 = .06*s*Math.max(0,ey);
+    const A = 1 - (1-a1)*(1-a2)*(1-a3)*(1-a4)*(1-a5)*(1-a6);
+    if (A <= .002) continue;
+    const w = a2 + a3 + a5, sum = a1 + w + a4 + a6;
+    D[i]   = (165*a1 + 255*w + 205*a4 + 14*a6)/sum;
+    D[i+1] = (243*a1 + 255*w + 250*a4 + 116*a6)/sum;
+    D[i+2] = (252*a1 + 255*w + 255*a4 + 144*a6)/sum;
+    D[i+3] = A*255*Math.min(1, d/1.2);
+  }
+  c.putImageData(img,0,0);
+})();
+
+/* Gelombang cahaya: lima untai riak permukaan air */
+function renderWave(time) {
+  const c = cvBar.getContext('2d');
+  c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,cvBar.width,cvBar.height);
+  cvBar.style.opacity = '1';
+  c.scale(dpr,dpr);
+  const mid = BH/2, step = 3, N = 5, M = 6, paths = [], extra = [], extraR = [];
+  /* gradien kanan: putih di tepi kaca lalu spektrum warna-warni yang bergeser pelan */
+  const mkR = k => {
+    const g = c.createLinearGradient(0,0,trackW,0), h = time*25 + k*23;
+    g.addColorStop(.44,'rgba(255,255,255,0)'); g.addColorStop(.5,'rgba(255,255,255,.85)');
+    [0,1,2,3,4].forEach(j => g.addColorStop(.56 + j*.11, `hsl(${(h + j*68)%360} 100% 62%)`));
+    return g;
+  };
+  /* kerucut kiri: untai menyebar ke atas-bawah di tepi layar, menyempit jadi satu baris di tepi kaca */
+  const xa = Math.max(24, trackW/2 - capW/2*.95), SP = BH*.42;
+  const swE = Array.from({length:M}, (_,k) => k/(M - 1)*2 - 1);
+  /* kiri: jingga → kuning → putih; kanan: spektrum warna-warni yang bergeser pelan */
+  const mk = k => {
+    const g = c.createLinearGradient(0,0,trackW,0), h = time*25 + k*52;
+    g.addColorStop(0,'#f97316'); g.addColorStop(.3,'#fbbf24'); g.addColorStop(.48,'#ffffff');
+    [0,1,2,3,4].forEach(j => g.addColorStop(.56 + j*.11, `hsl(${(h + j*68)%360} 100% 62%)`));
+    return g;
+  };
+  const g = mk(2);
+  const gl = c.createLinearGradient(0,0,trackW,0);
+  gl.addColorStop(0,'rgba(249,115,22,1)'); gl.addColorStop(.25,'rgba(251,191,36,1)'); gl.addColorStop(.42,'rgba(255,255,255,.85)'); gl.addColorStop(.56,'rgba(255,255,255,0)');
+  const gw = c.createLinearGradient(0,0,trackW,0);
+  gw.addColorStop(0,'rgba(255,250,240,.85)'); gw.addColorStop(.5,'rgba(255,250,240,.85)'); gw.addColorStop(.62,'rgba(255,250,240,0)');
+  for (let k = 0; k < N; k++) {
+    const p = [];
+    for (let x = 0; x <= trackW + step; x += step) {
+      const env = .55 + .45*Math.sin(Math.min(1,x/trackW)*Math.PI);
+      const y = Math.sin(x*(.032 + k*.007) - time*(1.5 + k*.45) + k*1.3)*(7 - k*.8) + Math.sin(x*(.081 + k*.011) + time*(1.1 + k*.3) + k)*(3 - k*.3);
+      p.push([x, mid + env*y]);
+    }
+    paths.push(p);
+  }
+  /* untai tambahan khusus sisi kiri: menyatu ke tengah kaca */
+  for (let k = 0; k < M; k++) {
+    const p = [];
+    for (let x = 0; x <= trackW + step; x += step) {
+      const u = x/trackW, fall = 1 - Math.min(1, Math.max(0, (u - .28)/.27)), env = (.55 + .45*Math.sin(Math.min(1,u*1.6)*Math.PI))*fall;
+      const t = Math.min(1, Math.max(0, (xa - x)/xa));
+      const y = Math.sin(x*(.026 + k*.006) - time*(1.2 + k*.25) + k*1.9)*(8 - k*.35) + Math.sin(x*(.07 + k*.009) + time*(.9 + k*.22) + k*2.3)*(3.5 - k*.15);
+      p.push([x, mid + env*y]);
+    }
+    extra.push(p);
+  }
+  /* kerucut kanan: cermin kiri, jumlah untai sama, warna-warni */
+  for (let k = 0; k < M; k++) {
+    const p = [];
+    for (let x = 0; x <= trackW + step; x += step) {
+      const u = 1 - x/trackW, fall = 1 - Math.min(1, Math.max(0, (u - .28)/.27)), env = (.55 + .45*Math.sin(Math.min(1,u*1.6)*Math.PI))*fall;
+      const t = Math.min(1, Math.max(0, (x - (trackW - xa))/xa));
+      const y = Math.sin(x*(.026 + k*.006) - time*(1.2 + k*.25) + k*1.9 + 3.1)*(8 - k*.35) + Math.sin(x*(.07 + k*.009) + time*(.9 + k*.22) + k*2.3 + 1.7)*(3.5 - k*.15);
+      p.push([x, mid + env*y]);
+    }
+    extraR.push(p);
+  }
+  const trace = p => { c.beginPath(); p.forEach((q,i) => i ? c.lineTo(q[0],q[1]) : c.moveTo(q[0],q[1])); };
+  c.globalCompositeOperation = 'lighter'; c.lineJoin = 'round'; c.lineCap = 'round';
+  for (let k = 0; k < N - 1; k++) {
+    const a = paths[k], b = paths[k+1];
+    trace(a); for (let i = b.length - 1; i >= 0; i--) c.lineTo(b[i][0], b[i][1]);
+    c.closePath(); c.globalAlpha = .16; c.fillStyle = g; c.fill();
+  }
+  for (let k = 0; k < M - 1; k++) {
+    const a = extra[k], b = extra[k+1];
+    trace(a); for (let i = b.length - 1; i >= 0; i--) c.lineTo(b[i][0], b[i][1]);
+    c.closePath(); c.globalAlpha = .1; c.fillStyle = gl; c.fill();
+  }
+  const gR = mkR(0);
+  for (let k = 0; k < M - 1; k++) {
+    const a = extraR[k], b = extraR[k+1];
+    trace(a); for (let i = b.length - 1; i >= 0; i--) c.lineTo(b[i][0], b[i][1]);
+    c.closePath(); c.globalAlpha = .1; c.fillStyle = gR; c.fill();
+  }
+  extra.forEach((p,k) => {
+    trace(p); c.globalAlpha = .3 + .45*(1 - Math.abs(swE[k])); c.strokeStyle = gl; c.lineWidth = .9;
+    c.shadowColor = 'rgba(255,170,60,.9)'; c.shadowBlur = (k%4 === 0 ? 4 : 0)*dpr; c.stroke();
+  });
+  extraR.forEach((p,k) => {
+    trace(p); c.globalAlpha = .3 + .45*(1 - Math.abs(swE[k])); c.strokeStyle = mkR(k); c.lineWidth = .9;
+    c.shadowColor = 'rgba(255,190,120,.8)'; c.shadowBlur = (k%4 === 0 ? 4 : 0)*dpr; c.stroke();
+  });
+  paths.forEach((p,k) => {
+    const core = k === 2;
+    trace(p); c.globalAlpha = core ? .95 : .35 + .1*k; c.strokeStyle = mk(k); c.lineWidth = core ? 2.4 : 1.2;
+    c.shadowColor = 'rgba(255,190,120,.8)'; c.shadowBlur = (core ? 12 : 6)*dpr; c.stroke();
+  });
+  c.shadowBlur = 0; c.globalAlpha = 1; trace(paths[2]); c.strokeStyle = gw; c.lineWidth = .9; c.stroke();
+  c.globalAlpha = 1; c.globalCompositeOperation = 'destination-in';
+  const fade = c.createLinearGradient(0,0,trackW,0);
+  fade.addColorStop(0,'rgba(0,0,0,0)'); fade.addColorStop(.08,'rgba(0,0,0,1)'); fade.addColorStop(.92,'rgba(0,0,0,1)'); fade.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle = fade; c.fillRect(0,0,trackW + step,BH);
+  c.globalCompositeOperation = 'source-over';
+}
+
+function draw(now) {
+  renderWave(reduce.matches ? 2 : now/1000*.7); /* tempo 30% lebih tenang */
+  renderRefract(capX);
+}
+let last = 0;
+function frame(now) {
+  DT = Math.min(.05, (now - last)/1000 || .016); last = now;
+  if (!reduce.matches || dirty) { draw(now); dirty = false; }
+  requestAnimationFrame(frame);
+}
+
+/* Hover: lensa menyala dan kursor dibiaskan di dalam kaca */
+const leaveGlass = () => { capsule.classList.remove('hot'); ptr.ta = 0; dirty = true; document.documentElement.style.cursor = ''; };
+addEventListener('pointermove', e => {
+  const r = capsule.getBoundingClientRect(), m = 28;
+  if (e.clientX < r.left - m || e.clientX > r.right + m || e.clientY < r.top - m || e.clientY > r.bottom + m) {
+    if (capsule.classList.contains('hot')) leaveGlass();
+    return;
+  }
+  const lx = (e.clientX - r.left)/r.width*280, ly = (e.clientY - r.top)/r.height*72;
+  const inside = Math.hypot(Math.max(0, Math.abs(lx - 140) - 104), ly - 36) < 34;
+  ptr.tx = lx; ptr.ty = ly; ptr.s = r.width/280; ptr.ta = inside ? 1 : 0;
+  document.documentElement.style.cursor = inside ? 'none' : '';
+  capsule.classList.toggle('hot', inside); dirty = true;
+});
+document.documentElement.addEventListener('pointerleave', leaveGlass);
+addEventListener('blur', leaveGlass);
+addEventListener('resize', () => { syncBar(); dirty = true; });
+if (window.ResizeObserver) new ResizeObserver(() => { syncBar(); dirty = true; }).observe(wrap);
+/* Jam digital di kanvas: tepi huruf membiaskan cahaya gelombang (RGB terpisah + sorot tepi) */
+const cvText = $('cvText'); cvText.width = OW; cvText.height = OH;
+const tctx = cvText.getContext('2d'), tmask = document.createElement('canvas'); tmask.width = OW; tmask.height = OH;
+const mctx = tmask.getContext('2d', { willReadFrequently: true }), txtImg = tctx.createImageData(OW, OH);
+const RIM = [34, 34, 34], KD = [1, 1, 1], DM = 8;
+let band = null;
+const BR = 4, BN = 5; /* blur kaca hitam: jarak antar sampel (px sumber) dan jumlah sampel per sumbu */
+function box(src, r) {
+  const t = new Float32Array(OW*OH), o = new Float32Array(OW*OH), k = 1/(2*r + 1);
+  for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) { let s = 0; for (let d = -r; d <= r; d++) { const q = x + d; if (q >= 0 && q < OW) s += src[y*OW + q]; } t[y*OW + x] = s*k; }
+  for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) { let s = 0; for (let d = -r; d <= r; d++) { const q = y + d; if (q >= 0 && q < OH) s += t[q*OW + x]; } o[y*OW + x] = s*k; }
+  return o;
+}
+function buildText(s) {
+  const F = 29*RK, FONT = '"Orbitron","Rajdhani",system-ui,sans-serif', amber = [];
+  mctx.clearRect(0, 0, OW, OH); mctx.textAlign = 'center'; mctx.textBaseline = 'alphabetic';
+  const map = [0,1,-1,2,3,-1,4,5], gap = 2, total = (6*.82 + 2*.42 + 1.04)*F + gap*8 + 16;
+  let x = (OW - total)/2;
+  mctx.font = '700 ' + F + 'px ' + FONT;
+  map.forEach(m => {
+    const w = (m < 0 ? .42 : .82)*F;
+    mctx.fillStyle = m < 0 ? '#fbbf24' : '#ffffff';
+    if (m < 0) amber.push([x, x + w]);
+    const ch = m < 0 ? ':' : s[m], px = x + w/2, py = OH/2 + .36*F;
+    mctx.fillText(ch, px, py); mctx.lineWidth = F*.05; mctx.lineJoin = 'round'; mctx.strokeStyle = mctx.fillStyle; mctx.strokeText(ch, px, py);
+    x += w + gap;
+  });
+  x += 16 - gap;
+  const f2 = .56*F; mctx.font = '700 ' + f2 + 'px ' + FONT; mctx.fillStyle = '#fbbf24';
+  amber.push([x - 2, x + 1.12*F]);
+  [s[6], s[7]].forEach((ch, j) => { const px = x + (.425 + j*.99)*f2, py = OH/2 + .36*f2; mctx.fillText(ch, px, py); mctx.lineWidth = f2*.06; mctx.strokeStyle = '#fbbf24'; mctx.strokeText(ch, px, py); });
+  const md = mctx.getImageData(0, 0, OW, OH).data, n = OW*OH, A = new Float32Array(n);
+  for (let i = 0; i < n; i++) A[i] = md[i*4 + 3]/255;
+  const Bf = box(box(A, 2), 2), od = txtImg.data;
+  od.fill(0);
+  const idx = [], ti = [], tx = [], ty = [], e = [], w = [], al = [], fl = [], iIdx = [], iTap = [], iFill = [];
+  for (let y = 1; y < OH - 1; y++) for (let xx = 1; xx < OW - 1; xx++) {
+    const i = y*OW + xx, b = Bf[i];
+    if (b < .03) continue;
+    const am = amber.some(r => xx >= r[0] && xx < r[1]), sh = 34*Math.pow(1 - Math.min(1, Math.max(0, (y - (OH/2 - .36*F))/(.72*F))), 2);
+    const fill = am ? [34 + sh, 22 + sh, 8 + sh*.4] : [12 + sh, 13 + sh, 18 + sh*1.1]; /* kaca hitam dengan kilau tipis di bagian atas */
+    if (b > .97) {
+      const o = i*4; od[o] = fill[0]; od[o+1] = fill[1]; od[o+2] = fill[2]; od[o+3] = 244;
+      const cx0 = SW/2 + (xx + .5 - OW/2)*.92, cy0 = SH/2 + (y + .5 - OH/2)*.92;
+      iIdx.push(i); iFill.push(fill[0], fill[1], fill[2]);
+      for (let ty2 = -(BN >> 1); ty2 <= (BN >> 1); ty2++) for (let tx2 = -(BN >> 1); tx2 <= (BN >> 1); tx2++) {
+        const qx = Math.min(SW - 1, Math.max(0, Math.round(cx0 + tx2*BR))), qy = Math.min(SH - 1, Math.max(0, Math.round(cy0 + ty2*BR)));
+        iTap.push((qy*SW + qx)*4);
+      }
+      continue;
+    }
+    const nx = Bf[i-1] - Bf[i+1], ny = Bf[i-OW] - Bf[i+OW], len = Math.hypot(nx, ny);
+    if (len < 1e-4) continue;
+    const ee = 4*b*(1 - b), dx = nx/len*ee*DM, dy = ny/len*ee*DM;
+    const bx = SW/2 + (xx + .5 - OW/2)*.92, by = SH/2 + (y + .5 - OH/2)*.92;
+    for (let ch = 0; ch < 3; ch++) {
+      let sx = bx - dx*KD[ch] - .5, sy = by - dy*KD[ch] - .5;
+      sx = sx < 0 ? 0 : sx > SW - 1.001 ? SW - 1.001 : sx;
+      sy = sy < 0 ? 0 : sy > SH - 1.001 ? SH - 1.001 : sy;
+      const x0 = Math.floor(sx), y0 = Math.floor(sy);
+      ti.push((y0*SW + x0)*4 + ch); tx.push(sx - x0); ty.push(sy - y0);
+    }
+    const t = Math.min(1, Math.max(0, (b - .42)/.4));
+    idx.push(i); e.push(ee); w.push(t*t*(3 - 2*t));
+    al.push(b < .43 ? (b - .03)/.4*255 : 255); fl.push(fill[0], fill[1], fill[2]);
+  }
+  band = { n: idx.length, idx: Int32Array.from(idx), ti: Int32Array.from(ti), tx: Float32Array.from(tx), ty: Float32Array.from(ty), e: Float32Array.from(e), w: Float32Array.from(w), al: Uint8ClampedArray.from(al), fl: Uint8ClampedArray.from(fl), in: iIdx.length, iIdx: Int32Array.from(iIdx), iTap: Int32Array.from(iTap), iFill: Uint8ClampedArray.from(iFill) };
+}
+function paintTextBand(sd) {
+  if (!band) return;
+  const od = txtImg.data, SW4 = SW*4, { n, idx, ti, tx, ty, e, w, al, fl } = band;
+  for (let k = 0; k < n; k++) {
+    const o = idx[k]*4, ww = w[k], ee = e[k];
+    for (let ch = 0; ch < 3; ch++) {
+      const j = k*3 + ch, p = ti[j], q = p + SW4, fx = tx[j], fy = ty[j];
+      const v = ((sd[p]*(1-fx) + sd[p+4]*fx)*(1-fy) + (sd[q]*(1-fx) + sd[q+4]*fx)*fy)*1.3 + ee*RIM[ch];
+      od[o+ch] = v*(1 - ww) + fl[j]*ww;
+    }
+    od[o+3] = al[k];
+  }
+  const NT = BN*BN, kb = 1/NT, { iIdx, iTap, iFill } = band;
+  for (let k = 0; k < band.in; k++) {
+    const o = iIdx[k]*4, t0 = k*NT;
+    let r = 0, g = 0, bl = 0;
+    for (let t = 0; t < NT; t++) { const p = iTap[t0 + t]; r += sd[p]; g += sd[p+1]; bl += sd[p+2]; }
+    od[o] = r*kb*.16 + iFill[k*3]*.84; od[o+1] = g*kb*.16 + iFill[k*3+1]*.84; od[o+2] = bl*kb*.16 + iFill[k*3+2]*.84;
+  }
+  tctx.putImageData(txtImg, 0, 0);
+}
+
+/* jam digital di dalam kaca, mengikuti waktu perangkat */
+const clock = $('clock'), pad2 = n => String(n).padStart(2,'0');
+let shown = '';
+function tick() {
+  const d = new Date(), h = d.getHours(), h12 = h % 12 || 12;
+  const s = pad2(h12) + pad2(d.getMinutes()) + pad2(d.getSeconds()) + (h < 12 ? 'AM' : 'PM');
+  if (s === shown) return;
+  shown = s;
+  buildText(s); dirty = true;
+  clock.dateTime = pad2(h) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+/* ukiran tulisan di bawah jam, rata tengah tabung kaca; sorot terang di bawah, bayangan gelap di dalam goresan */
+const cvEngrave = $('cvEngrave'); cvEngrave.width = OW; cvEngrave.height = OH;
+function drawEngrave() {
+  const g = cvEngrave.getContext('2d'), txt = 'PSTZX', fs = 7*RK, sp = 2.2*RK, y0 = 61*RK;
+  g.clearRect(0, 0, OW, OH);
+  g.font = '700 ' + fs + 'px "Orbitron","Rajdhani",system-ui,sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  const width = [...txt].reduce((a, ch) => a + g.measureText(ch).width + sp, -sp), x0 = (OW - width)/2;
+  [[1.2, 1.4, 'rgba(255,255,255,.55)'], [-.4, -.5, 'rgba(0,0,0,.22)'], [0, 0, 'rgba(14,16,22,.62)']].forEach(([ox, oy, col]) => {
+    g.fillStyle = col; let x = x0 + ox;
+    for (const ch of txt) { g.fillText(ch, x, y0 + oy); x += g.measureText(ch).width + sp; }
+  });
+}
+drawEngrave();
+tick(); setInterval(tick, 250);
+if (document.fonts) document.fonts.load('700 48px Orbitron').then(() => { shown = ''; tick(); drawEngrave(); });
+syncBar();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
