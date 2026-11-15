@@ -402,7 +402,7 @@ function tick() {
 /* ukiran tulisan di bawah jam, rata tengah tabung kaca; sorot terang di bawah, bayangan gelap di dalam goresan */
 const cvEngrave = $('cvEngrave'); cvEngrave.width = OW; cvEngrave.height = OH;
 function drawEngrave() {
-  const g = cvEngrave.getContext('2d'), txt = 'PSTZX', fs = 7*RK, sp = 2.2*RK, y0 = 61*RK;
+  const g = cvEngrave.getContext('2d'), txt = '21st', fs = 7*RK, sp = 2.2*RK, y0 = 61*RK;
   g.clearRect(0, 0, OW, OH);
   g.font = '700 ' + fs + 'px "Orbitron","Rajdhani",system-ui,sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
   const width = [...txt].reduce((a, ch) => a + g.measureText(ch).width + sp, -sp), x0 = (OW - width)/2;
